@@ -8,18 +8,142 @@ output:
 
 ## Loading and preprocessing the data
 
+```{r loading data, message=FALSE, warning=FALSE}
 
+# Unzip and read dataset
+unzip("activity.zip")
+dataset = read.csv("activity.csv")
+
+# Adjust date format
+dataset$date = as.character(dataset$date)
+dataset$date = as.Date(dataset$date, "%Y- %m- %d")
+
+# Ignore NAs values
+dataset_non_na = dataset[complete.cases(dataset),]
+
+```
 
 ## What is mean total number of steps taken per day?
 
+```{r steps per day, message=FALSE, warning=FALSE}
+
+# Summarise steps per day
+library(dplyr)
+dataset_day = dataset_non_na %>%
+        group_by(date) %>%
+        summarize(steps_day = sum(steps, na.rm = TRUE))
+
+# Plot histogram of steps per day
+hist(dataset_day$steps_day,
+     freq = T, 
+     main = "Total number of steps taken each day",
+     xlab = "Steps per day")
+
+# Mean and Median of the total number os steps
+mean_steps = as.character(round(mean(dataset_day$steps_day), 0))
+median_steps = as.character(round(median(dataset_day$steps_day), 0)) 
+
+```
+
+The mean of steps taken each day: `r mean_steps`  
+The median of steps taken each day: `r median_steps`
 
 
 ## What is the average daily activity pattern?
 
+```{r steps per interval, message=FALSE, warning=FALSE}
+# Summarise steps per 5-minute interval
+dataset_interval = dataset_non_na %>%
+        group_by(interval) %>%
+        summarize(average_steps = mean(steps, na.rm = T))
+
+# Plot time series of the 5-minute interval (x-axis) and the average number of steps taken
+plot(dataset_interval$interval, dataset_interval$average_steps,
+     type = "l",
+     xlab = "5-minutes interval",
+     ylab = "Average of steps taken",
+     main = "Daily activity pattern",
+     col =  "red",
+     lwd = 1)
+
+# Interval with max number of steps
+max_interval = as.numeric(dataset_interval[dataset_interval$average_steps == max(dataset_interval$average_steps),1])
+
+```
+
+The 5-minute interval that contains the maximum number of steps is: `r max_interval`
 
 
 ## Imputing missing values
 
+```{r missing values, message=FALSE, warning=FALSE}
+# Calculate the total number of Missing values
+missing_values = nrow(dataset[!complete.cases(dataset),])
+
+# Replace Missing values values with mean value of the corresponding interval during all days
+dataset_filled = dataset
+dataset_filled = dataset_filled %>%
+        group_by(interval) %>%
+        mutate(steps = ifelse(is.na(steps), mean(steps, na.rm = T), steps))
+
+# Group data by day
+dataset_filled_day = dataset_filled %>%
+        group_by(date) %>%
+        summarize(steps_day = sum(steps, na.rm = TRUE))
+
+# Plot a histogram of the total number of steps taken each day
+hist(dataset_filled_day$steps_day,
+     freq = T, 
+     main = "Total number of steps taken each day",
+     xlab = "Steps per day")     
+
+# Mean and Median total number of steps taken per day
+mean_steps_filled = as.character(round(mean(dataset_filled_day$steps_day), 0)) 
+median_steps_filled = as.character(round(median(dataset_filled_day$steps_day), 0)) 
+
+```
+
+The total number of Missing values is `r missing_values` rows.  
+The mean of steps taken each day with dataset filled missing values: `r mean_steps_filled`.  
+The median of steps taken each day with dataset filled missing values: `r median_steps_filled`.  
+
+The strategy to deal with missing values was replace them with the mean of specific interval. As we can see, the mean values remains equal in both methods, but the median value has slight increase. The total daily number os steps has a significant increase with this dataset filled.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r plot weekdays, message=FALSE, warning=FALSE}
+# Create factor variable weekdays
+dataset_filled_weekdays = dataset_filled
+dataset_filled_weekdays$days = weekdays(dataset_filled_weekdays$date)
+dataset_filled_weekdays$fac_day = ifelse(dataset_filled_weekdays$days %in% c("sábado",
+                                                                             "domingo"),
+                                         "Weekend",
+                                         "Weekday")
+dataset_filled_weekdays$days = NULL
+
+# Group data by interval
+dataset_plot = dataset_filled_weekdays %>%
+        group_by(interval, fac_day) %>%
+        summarize(steps_day = mean(steps))
+
+# Plot a time series plot of the 5-minute interval and the average number of steps taken
+library(ggplot2)
+
+h = ggplot(data = dataset_plot)
+h + geom_line(aes(x = interval, y = steps_day, color = fac_day))+
+  facet_wrap(~fac_day, ncol = 1)+
+  labs(title = "Steps per interval Weekdays vs Weekends",
+       y = "Steps per interval",
+       x = "5-minutes interval",
+       color = "Type of day")
+```
+
+It can be seen that on weekdays, average steps increase in the morning and in the end of day.
+In weekends, the steps starting increase more lately, but the average values is more constant during the day. 
+
+
+
+
+
+
